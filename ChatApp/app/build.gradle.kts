@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.chatapp"
-        minSdk = 24
+        minSdk = 34
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -47,6 +47,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlin {
+        compilerOptions {
+            optIn.add("androidx.xr.projected.experimental.ExperimentalProjectedApi")
+        }
     }
     buildFeatures { compose = true }
 
@@ -75,6 +80,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.xr.projected)
 
     // Hilt
     implementation(libs.hilt.android.core)

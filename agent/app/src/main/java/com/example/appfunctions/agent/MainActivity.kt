@@ -16,6 +16,7 @@
 package com.example.appfunctions.agent
 
 import android.Manifest
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -36,7 +37,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -71,6 +75,9 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ -> }
 
+    private var autoStartLiveVoiceState by mutableStateOf(false)
+    private var initialTargetPackageState by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (BuildConfig.IS_RETAIL) {
@@ -83,15 +90,38 @@ class MainActivity : ComponentActivity() {
             )
         }
         enableEdgeToEdge()
+        handleLaunchIntent(intent)
         setContent {
             AppFunctionsAgentTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    MainScreen(onCloseApp = { finish() })
+                    MainScreen(
+                        onCloseApp = { finish() },
+                        autoStartLiveVoice = autoStartLiveVoiceState,
+                        initialTargetPackageName = initialTargetPackageState,
+                        onAutoStartLiveVoiceConsumed = { autoStartLiveVoiceState = false },
+                    )
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleLaunchIntent(intent)
+    }
+
+    private fun handleLaunchIntent(intent: Intent?) {
+        if (intent == null) return
+        if (intent.getBooleanExtra(EXTRA_START_LIVE_VOICE, false)) {
+            autoStartLiveVoiceState = true
+        }
+        val targetPkg = intent.getStringExtra(EXTRA_TARGET_PACKAGE_NAME)
+        if (!targetPkg.isNullOrBlank()) {
+            initialTargetPackageState = targetPkg
         }
     }
 
@@ -100,6 +130,8 @@ class MainActivity : ComponentActivity() {
         const val ARG_THREAD_ID = "threadId"
         const val DEEPLINK_URI_PATTERN = "appfunctions-agent://chat?threadId={threadId}"
         const val EXTRA_INSTRUMENTATION_ERROR = "EXTRA_INSTRUMENTATION_ERROR"
+        const val EXTRA_START_LIVE_VOICE = "EXTRA_START_LIVE_VOICE"
+        const val EXTRA_TARGET_PACKAGE_NAME = "extra_target_package_name"
     }
 }
 
@@ -111,10 +143,21 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     onCloseApp: () -> Unit,
+    autoStartLiveVoice: Boolean = false,
+    initialTargetPackageName: String? = null,
+    onAutoStartLiveVoiceConsumed: () -> Unit = {},
     viewModel: MainViewModel = hiltViewModel(),
 ) {
     val navController = rememberNavController()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(autoStartLiveVoice) {
+        if (autoStartLiveVoice) {
+            navController.navigate("agent_demo") {
+                launchSingleTop = true
+            }
+        }
+    }
 
     val items = listOf("debugging", "agent_demo", "settings")
     val icons = listOf(Icons.Default.Terminal, Icons.Default.PlayCircle, Icons.Default.Settings)
@@ -185,7 +228,12 @@ fun MainScreen(
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = "debugging",
+            startDestination =
+                if (autoStartLiveVoice) {
+                    MainActivity.ROUTE_AGENT_DEMO
+                } else {
+                    "debugging"
+                },
             modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
         ) {
             composable("debugging") { DebuggingScreen() }
@@ -202,7 +250,11 @@ fun MainScreen(
                 deepLinks =
                     listOf(navDeepLink { uriPattern = MainActivity.DEEPLINK_URI_PATTERN }),
             ) {
-                AgentDemoScreen()
+                AgentDemoScreen(
+                    autoStartLiveVoice = autoStartLiveVoice,
+                    initialTargetPackageName = initialTargetPackageName,
+                    onAutoStartLiveVoiceConsumed = onAutoStartLiveVoiceConsumed,
+                )
             }
             composable("settings") {
                 SettingsScreen(

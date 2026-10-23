@@ -213,6 +213,100 @@ class ConvertInputToAppFunctionDataUseCaseTest {
     }
 
     @Test
+    fun invoke_numericArraysWithNumberElementsAndJsonObjectArrays_convertsWithoutCastException() {
+        val itemObjType =
+            AppFunctionObjectTypeMetadata(
+                properties =
+                    mapOf(
+                        "id" to AppFunctionIntTypeMetadata(false),
+                        "label" to AppFunctionStringTypeMetadata(false),
+                    ),
+                required = listOf("id", "label"),
+                qualifiedName = null,
+                isNullable = false,
+            )
+        val componentsWithRef =
+            AppFunctionComponentsMetadata(
+                dataTypes = mapOf("ContactRef" to itemObjType),
+            )
+        val parameters =
+            listOf(
+                AppFunctionParameterMetadata(
+                    "intArrayFromLongs",
+                    true,
+                    AppFunctionArrayTypeMetadata(AppFunctionIntTypeMetadata(false), false),
+                ),
+                AppFunctionParameterMetadata(
+                    "longArrayFromInts",
+                    true,
+                    AppFunctionArrayTypeMetadata(AppFunctionLongTypeMetadata(false), false),
+                ),
+                AppFunctionParameterMetadata(
+                    "doubleArrayFromNumbers",
+                    true,
+                    AppFunctionArrayTypeMetadata(AppFunctionDoubleTypeMetadata(false), false),
+                ),
+                AppFunctionParameterMetadata(
+                    "floatArrayFromDoubles",
+                    true,
+                    AppFunctionArrayTypeMetadata(AppFunctionFloatTypeMetadata(false), false),
+                ),
+                AppFunctionParameterMetadata(
+                    "boolArrayFromStrings",
+                    true,
+                    AppFunctionArrayTypeMetadata(AppFunctionBooleanTypeMetadata(false), false),
+                ),
+                AppFunctionParameterMetadata(
+                    "objArray",
+                    true,
+                    AppFunctionArrayTypeMetadata(itemObjType, false),
+                ),
+                AppFunctionParameterMetadata(
+                    "refArray",
+                    true,
+                    AppFunctionArrayTypeMetadata(
+                        AppFunctionReferenceTypeMetadata("ContactRef", false),
+                        false,
+                    ),
+                ),
+            )
+        val inputs =
+            mapOf(
+                "intArrayFromLongs" to listOf(10L, 20L),
+                "longArrayFromInts" to listOf(30, 40),
+                "doubleArrayFromNumbers" to listOf(1.5, 2.5),
+                "floatArrayFromDoubles" to listOf(3.5, 4.5),
+                "boolArrayFromStrings" to listOf("true", "false"),
+                "objArray" to
+                    listOf(
+                        mapOf("id" to 1L, "label" to "First"),
+                        "{\"id\":2,\"label\":\"Second\"}",
+                    ),
+                "refArray" to
+                    listOf(
+                        "{\"id\":3,\"label\":\"Third\"}",
+                    ),
+            )
+
+        val result = useCase(parameters, componentsWithRef, inputs).getOrThrow()
+
+        assertEquals(listOf(10, 20), result.getIntArray("intArrayFromLongs")?.toList())
+        assertEquals(listOf(30L, 40L), result.getLongArray("longArrayFromInts")?.toList())
+        assertEquals(listOf(1.5, 2.5), result.getDoubleArray("doubleArrayFromNumbers")?.toList())
+        assertEquals(listOf(3.5f, 4.5f), result.getFloatArray("floatArrayFromDoubles")?.toList())
+        assertEquals(listOf(true, false), result.getBooleanArray("boolArrayFromStrings")?.toList())
+
+        val objList = result.getAppFunctionDataList("objArray")
+        assertEquals(2, objList?.size)
+        assertEquals(1, objList?.get(0)?.getInt("id"))
+        assertEquals("Second", objList?.get(1)?.getString("label"))
+
+        val refList = result.getAppFunctionDataList("refArray")
+        assertEquals(1, refList?.size)
+        assertEquals("Third", refList?.get(0)?.getString("label"))
+    }
+
+    @Test
     fun invoke_invalidNumericInputs_returnsFailure() {
         assertFailureForInput(AppFunctionIntTypeMetadata(false), "not_an_int")
         assertFailureForInput(AppFunctionLongTypeMetadata(false), "not_a_long")

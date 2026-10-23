@@ -22,6 +22,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.appfunctions.agent.data.LlmProviderName
 import com.example.appfunctions.agent.data.ServiceTier
 import com.example.appfunctions.agent.data.SettingsRepository
+import com.example.appfunctions.agent.domain.device.DeviceCapabilityRepository
+import com.example.appfunctions.agent.domain.device.FormFactor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,14 +35,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-/** ViewModel for the Settings screen, managing API keys and provider selection. */
+/** ViewModel for the Settings screen, managing API keys, provider selection, and XR form factor testing. */
 @HiltViewModel
 class SettingsViewModel
     @Inject
     constructor(
         private val settingsRepository: SettingsRepository,
+        private val deviceCapabilityRepository: DeviceCapabilityRepository,
     ) : ViewModel() {
         val geminiApiKeyState = TextFieldState()
+
+        val glassesConnectedOverride: StateFlow<Boolean?> =
+            deviceCapabilityRepository.glassesConnectedOverride
+
+        val formFactorOverride: StateFlow<FormFactor?> =
+            deviceCapabilityRepository.formFactorOverride
 
         val uiState: StateFlow<SettingsUiState> =
             combine(
@@ -78,5 +87,13 @@ class SettingsViewModel
 
         fun setServiceTier(tier: ServiceTier) {
             viewModelScope.launch { settingsRepository.setServiceTier(tier) }
+        }
+
+        fun setGlassesSimulation(enabled: Boolean) {
+            deviceCapabilityRepository.setGlassesConnectedOverride(if (enabled) true else null)
+        }
+
+        fun setFormFactorOverride(formFactor: FormFactor?) {
+            deviceCapabilityRepository.setFormFactorOverride(formFactor)
         }
     }

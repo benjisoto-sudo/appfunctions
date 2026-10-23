@@ -28,6 +28,11 @@ import androidx.appfunctions.metadata.AppFunctionObjectTypeMetadata
 import androidx.appfunctions.metadata.AppFunctionParameterMetadata
 import androidx.appfunctions.metadata.AppFunctionReferenceTypeMetadata
 import androidx.appfunctions.metadata.AppFunctionStringTypeMetadata
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import javax.inject.Inject
 
 /** Use case to convert a map of raw inputs to type-safe [AppFunctionData]. */
@@ -102,7 +107,9 @@ class ConvertInputToAppFunctionDataUseCase
                     builder.setAppFunctionData(name, objData)
                 }
                 is AppFunctionArrayTypeMetadata -> {
-                    setArrayValue(builder, name, dataType, value as List<Any>, components)
+                    @Suppress("UNCHECKED_CAST")
+                    val listVal = if (value is List<*>) value as List<Any> else listOf(value)
+                    setArrayValue(builder, name, dataType, listVal, components)
                 }
                 is AppFunctionReferenceTypeMetadata -> {
                     val referenceKey = dataType.referenceDataType
@@ -127,7 +134,40 @@ class ConvertInputToAppFunctionDataUseCase
                     .setString(uriPropertyName, value)
                     .build()
             }
-            return convertObject(objectType, value as Map<String, Any>, components)
+            return convertObject(objectType, toMap(value), components)
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        private fun toMap(value: Any): Map<String, Any> {
+            if (value is Map<*, *>) {
+                return value as Map<String, Any>
+            }
+            if (value is String) {
+                return try {
+                    val jsonObj = Json.parseToJsonElement(value).jsonObject
+                    jsonObjectToMap(jsonObj)
+                } catch (e: Exception) {
+                    emptyMap()
+                }
+            }
+            return emptyMap()
+        }
+
+        private fun jsonObjectToMap(jsonObj: JsonObject): Map<String, Any> {
+            return jsonObj.mapValues { (_, element) ->
+                when (element) {
+                    is JsonPrimitive -> element.content
+                    is JsonObject -> jsonObjectToMap(element)
+                    is JsonArray ->
+                        element.map { item ->
+                            when (item) {
+                                is JsonPrimitive -> item.content
+                                is JsonObject -> jsonObjectToMap(item)
+                                else -> item.toString()
+                            }
+                        }
+                }
+            }
         }
 
         private fun convertObject(
@@ -152,26 +192,35 @@ class ConvertInputToAppFunctionDataUseCase
         ) {
             when (val itemType = arrayType.itemType) {
                 is AppFunctionStringTypeMetadata -> {
-                    builder.setStringList(name, values.map { it as String })
+                    builder.setStringList(name, values.map { it.toString() })
                 }
                 is AppFunctionIntTypeMetadata -> {
-                    val intArray = values.map { (it as String).toInt() }.toIntArray()
+                    val intArray =
+                        values.map { (it as? Number)?.toInt() ?: it.toString().toInt() }.toIntArray()
                     builder.setIntArray(name, intArray)
                 }
                 is AppFunctionLongTypeMetadata -> {
-                    val longArray = values.map { (it as String).toLong() }.toLongArray()
+                    val longArray =
+                        values.map { (it as? Number)?.toLong() ?: it.toString().toLong() }.toLongArray()
                     builder.setLongArray(name, longArray)
                 }
                 is AppFunctionBooleanTypeMetadata -> {
-                    val booleanArray = values.map { it as Boolean }.toBooleanArray()
+                    val booleanArray =
+                        values.map { (it as? Boolean) ?: it.toString().toBoolean() }.toBooleanArray()
                     builder.setBooleanArray(name, booleanArray)
                 }
                 is AppFunctionDoubleTypeMetadata -> {
-                    val doubleArray = values.map { (it as String).toDouble() }.toDoubleArray()
+                    val doubleArray =
+                        values
+                            .map { (it as? Number)?.toDouble() ?: it.toString().toDouble() }
+                            .toDoubleArray()
                     builder.setDoubleArray(name, doubleArray)
                 }
                 is AppFunctionFloatTypeMetadata -> {
-                    val floatArray = values.map { (it as String).toFloat() }.toFloatArray()
+                    val floatArray =
+                        values
+                            .map { (it as? Number)?.toFloat() ?: it.toString().toFloat() }
+                            .toFloatArray()
                     builder.setFloatArray(name, floatArray)
                 }
                 is AppFunctionObjectTypeMetadata -> {

@@ -15,7 +15,10 @@
  */
 package com.example.appfunctions.agent.ui.screens.agentdemo
 
+import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
@@ -48,6 +51,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ButtonDefaults
@@ -72,6 +76,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,7 +87,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -116,6 +124,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -128,16 +137,91 @@ import com.example.appfunctions.agent.data.db.entities.MessageRole
 import com.example.appfunctions.agent.data.db.entities.ThreadEntity
 import com.example.appfunctions.agent.domain.AgentStatus
 import com.example.appfunctions.agent.domain.appfunction.AppInfo
+import com.example.appfunctions.agent.ui.screens.agentdemo.live.LiveVoiceSessionSheet
+import com.example.appfunctions.agent.ui.screens.agentdemo.live.LiveVoiceViewModel
 import com.example.appfunctions.agent.ui.screens.debugging.LazyExposedDropdownMenu
 import com.mikepenz.markdown.m3.Markdown
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-@Composable
-fun AgentDemoScreen(viewModel: AgentDemoViewModel = hiltViewModel()) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+/**
+ * Material 24dp vector icon representing Smart / AI Glasses.
+ */
+val SmartGlassesIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "SmartGlasses",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(fill = SolidColor(Color.Black)) {
+            // Left temple and lens frame
+            moveTo(2f, 10f)
+            lineTo(4f, 7f)
+            horizontalLineTo(9f)
+            curveTo(10.1f, 7f, 11f, 7.9f, 11f, 9f)
+            verticalLineTo(10f)
+            horizontalLineTo(13f)
+            verticalLineTo(9f)
+            curveTo(13f, 7.9f, 13.9f, 7f, 15f, 7f)
+            horizontalLineTo(20f)
+            lineTo(22f, 10f)
+            verticalLineTo(14f)
+            curveTo(22f, 15.66f, 20.66f, 17f, 19f, 17f)
+            horizontalLineTo(16f)
+            curveTo(14.34f, 17f, 13f, 15.66f, 13f, 14f)
+            verticalLineTo(12f)
+            horizontalLineTo(11f)
+            verticalLineTo(14f)
+            curveTo(11f, 15.66f, 9.66f, 17f, 8f, 17f)
+            horizontalLineTo(5f)
+            curveTo(3.34f, 17f, 2f, 15.66f, 2f, 14f)
+            close()
+            // Left inner lens cutout
+            moveTo(4f, 10f)
+            verticalLineTo(14f)
+            curveTo(4f, 14.55f, 4.45f, 15f, 5f, 15f)
+            horizontalLineTo(8f)
+            curveTo(8.55f, 15f, 9f, 14.55f, 9f, 14f)
+            verticalLineTo(10f)
+            horizontalLineTo(4f)
+            close()
+            // Right inner lens cutout
+            moveTo(15f, 10f)
+            verticalLineTo(14f)
+            curveTo(15f, 14.55f, 15.45f, 15f, 16f, 15f)
+            horizontalLineTo(19f)
+            curveTo(19.55f, 15f, 20f, 14.55f, 20f, 14f)
+            verticalLineTo(10f)
+            horizontalLineTo(15f)
+            close()
+        }
+    }.build()
+}
 
-    AgentDemoContent(uiState = uiState, onEvent = viewModel::onEvent)
+@Composable
+fun AgentDemoScreen(
+    viewModel: AgentDemoViewModel = hiltViewModel(),
+    liveVoiceViewModel: LiveVoiceViewModel = hiltViewModel(),
+    autoStartLiveVoice: Boolean = false,
+    initialTargetPackageName: String? = null,
+    onAutoStartLiveVoiceConsumed: () -> Unit = {},
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    AgentDemoContent(
+        uiState = uiState,
+        onEvent = viewModel::onEvent,
+        liveVoiceViewModel = liveVoiceViewModel,
+        onLaunchOnGlasses = { targetPackage ->
+            viewModel.launchAgentOnGlasses(context, targetPackage)
+        },
+        autoStartLiveVoice = autoStartLiveVoice,
+        initialTargetPackageName = initialTargetPackageName,
+        onAutoStartLiveVoiceConsumed = onAutoStartLiveVoiceConsumed,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,7 +229,12 @@ fun AgentDemoScreen(viewModel: AgentDemoViewModel = hiltViewModel()) {
 fun AgentDemoContent(
     uiState: AgentUiState,
     onEvent: (AgentUiEvent) -> Unit,
+    liveVoiceViewModel: LiveVoiceViewModel? = null,
+    onLaunchOnGlasses: (String?) -> Unit = {},
     initialSidePanelVisible: Boolean = false,
+    autoStartLiveVoice: Boolean = false,
+    initialTargetPackageName: String? = null,
+    onAutoStartLiveVoiceConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val packageManager = context.packageManager
@@ -170,11 +259,16 @@ fun AgentDemoContent(
                     AgentDemoLoadedScreen(
                         uiState = uiState,
                         onEvent = onEvent,
+                        liveVoiceViewModel = liveVoiceViewModel,
+                        onLaunchOnGlasses = onLaunchOnGlasses,
                         isWideScreen = isWideScreen,
                         drawerState = drawerState,
                         scope = scope,
                         packageManager = packageManager,
                         initialSidePanelVisible = initialSidePanelVisible,
+                        autoStartLiveVoice = autoStartLiveVoice,
+                        initialTargetPackageName = initialTargetPackageName,
+                        onAutoStartLiveVoiceConsumed = onAutoStartLiveVoiceConsumed,
                     )
                 }
             }
@@ -220,15 +314,53 @@ fun AgentDemoLoadingScreen() {
 fun AgentDemoLoadedScreen(
     uiState: AgentUiState.Loaded,
     onEvent: (AgentUiEvent) -> Unit,
+    liveVoiceViewModel: LiveVoiceViewModel? = null,
+    onLaunchOnGlasses: (String?) -> Unit = {},
     isWideScreen: Boolean,
     drawerState: DrawerState,
     scope: CoroutineScope,
     packageManager: PackageManager,
     initialSidePanelVisible: Boolean = false,
+    autoStartLiveVoice: Boolean = false,
+    initialTargetPackageName: String? = null,
+    onAutoStartLiveVoiceConsumed: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     var messageText by remember { mutableStateOf(TextFieldValue("")) }
     var isSidePanelVisible by remember { mutableStateOf(initialSidePanelVisible) }
-    var selectedAppPackageName by remember { mutableStateOf<String?>(null) }
+    var selectedAppPackageName by
+        remember(initialTargetPackageName) { mutableStateOf(initialTargetPackageName) }
+    var showLiveVoiceSheet by remember { mutableStateOf(false) }
+
+    val audioPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                showLiveVoiceSheet = true
+            }
+        }
+
+    val openLiveSession = {
+        val hasAudioPerm =
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (hasAudioPerm) {
+            showLiveVoiceSheet = true
+        } else {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    LaunchedEffect(autoStartLiveVoice, initialTargetPackageName) {
+        if (!initialTargetPackageName.isNullOrBlank()) {
+            selectedAppPackageName = initialTargetPackageName
+        }
+        if (autoStartLiveVoice) {
+            onAutoStartLiveVoiceConsumed()
+            openLiveSession()
+        }
+    }
 
     val chipBgColor = MaterialTheme.colorScheme.primaryContainer
     val chipTextColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -260,11 +392,47 @@ fun AgentDemoLoadedScreen(
                         }
                     },
                 )
+                // Glasses Icon: enabled when glasses are connected, disabled when disconnected
+                IconButton(
+                    onClick = {
+                        onEvent(AgentUiEvent.OnLaunchOnGlasses(selectedAppPackageName))
+                        onLaunchOnGlasses(selectedAppPackageName)
+                    },
+                    enabled = uiState.isGlassesConnected,
+                    modifier = Modifier.padding(horizontal = 2.dp),
+                ) {
+                    Icon(
+                        imageVector = SmartGlassesIcon,
+                        contentDescription =
+                            if (uiState.isGlassesConnected) {
+                                "Launch Agent on Glasses"
+                            } else {
+                                "Glasses Disconnected"
+                            },
+                        tint =
+                            if (uiState.isGlassesConnected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                    )
+                }
+                // Live Icon: launches Gemini Live on mobile to invoke AppFunctions by voice
+                IconButton(
+                    onClick = openLiveSession,
+                    modifier = Modifier.padding(horizontal = 2.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GraphicEq,
+                        contentDescription = "Start Gemini Live Session",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 IconButton(
                     onClick = {
                         onEvent(AgentUiEvent.OnCreateThread(uiState.currentThread.llmModel))
                     },
-                    modifier = Modifier.padding(horizontal = 8.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp),
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = "Create Thread")
                 }
@@ -516,6 +684,34 @@ fun AgentDemoLoadedScreen(
                 }
             }
         }
+    }
+
+    if (showLiveVoiceSheet && liveVoiceViewModel != null) {
+        val liveSessionState by liveVoiceViewModel.sessionState.collectAsStateWithLifecycle()
+        val liveTranscriptLog by liveVoiceViewModel.transcriptLog.collectAsStateWithLifecycle()
+        val liveAudioLevel by liveVoiceViewModel.audioLevel.collectAsStateWithLifecycle()
+
+        DisposableEffect(Unit) {
+            onDispose { liveVoiceViewModel.stopSession() }
+        }
+        LaunchedEffect(selectedAppPackageName) {
+            liveVoiceViewModel.startSession(targetPackageName = selectedAppPackageName)
+        }
+        LiveVoiceSessionSheet(
+            sessionState = liveSessionState,
+            transcriptLog = liveTranscriptLog,
+            audioLevel = liveAudioLevel,
+            onToggleMute = { muted -> liveVoiceViewModel.setMuted(muted) },
+            onSendTextPrompt = { liveVoiceViewModel.sendTextPrompt(it) },
+            onEndSession = {
+                liveVoiceViewModel.stopSession()
+                showLiveVoiceSheet = false
+            },
+            onDismissRequest = {
+                liveVoiceViewModel.stopSession()
+                showLiveVoiceSheet = false
+            },
+        )
     }
 }
 

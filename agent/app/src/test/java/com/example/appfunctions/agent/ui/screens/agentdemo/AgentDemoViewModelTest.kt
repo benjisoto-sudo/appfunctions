@@ -15,6 +15,7 @@
  */
 package com.example.appfunctions.agent.ui.screens.agentdemo
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import com.example.appfunctions.agent.data.LlmModel
 import com.example.appfunctions.agent.data.LlmProviderName
@@ -30,6 +31,7 @@ import com.example.appfunctions.agent.domain.appfunction.GetInstalledAppsUseCase
 import com.example.appfunctions.agent.domain.chat.GetChatHistoryUseCase
 import com.example.appfunctions.agent.domain.chat.ManageThreadsUseCase
 import com.example.appfunctions.agent.domain.chat.SendMessageUseCase
+import com.example.appfunctions.agent.domain.device.DeviceCapabilityRepository
 import com.example.appfunctions.agent.domain.pendingintent.ConsumePendingIntentUseCase
 import com.example.appfunctions.agent.domain.pendingintent.LaunchPendingIntentUseCase
 import com.example.appfunctions.agent.domain.pendingintent.ObserveActivePendingIntentsUseCase
@@ -37,6 +39,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,6 +50,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -65,6 +69,7 @@ class AgentDemoViewModelTest {
     private lateinit var consumePendingIntentUseCase: ConsumePendingIntentUseCase
     private lateinit var getInstalledAppsUseCase: GetInstalledAppsUseCase
     private lateinit var getAppFunctionsUseCase: GetAppFunctionsUseCase
+    private lateinit var deviceCapabilityRepository: DeviceCapabilityRepository
 
     private lateinit var viewModel: AgentDemoViewModel
 
@@ -73,6 +78,7 @@ class AgentDemoViewModelTest {
     private val agentStatusFlow = MutableStateFlow<AgentStatus>(AgentStatus.Idle)
     private val messagesFlow = MutableStateFlow<List<MessageEntity>>(emptyList())
     private val activePendingActionIdsFlow = MutableStateFlow<Set<String>>(emptySet())
+    private val isGlassesConnectedFlow = MutableStateFlow(false)
 
     @Before
     fun setUp() {
@@ -89,15 +95,17 @@ class AgentDemoViewModelTest {
         consumePendingIntentUseCase = mockk(relaxed = true)
         getInstalledAppsUseCase = mockk()
         getAppFunctionsUseCase = mockk()
+        deviceCapabilityRepository = mockk(relaxed = true)
 
         every { getInstalledAppsUseCase() } returns emptyList()
         every { getAppFunctionsUseCase() } returns flowOf(emptyMap())
+        every { deviceCapabilityRepository.isGlassesConnected } returns isGlassesConnectedFlow
 
         every { manageThreadsUseCase.getThreads() } returns threadsFlow
         every { settingsRepository.selectedProvider } returns selectedProviderFlow
+        every { settingsRepository.geminiApiKey } returns flowOf("test-key")
         every { agentOrchestrator.status } returns agentStatusFlow
         every { getChatHistoryUseCase(any()) } returns messagesFlow
-        every { observeActivePendingIntentsUseCase() } returns activePendingActionIdsFlow
         every { observeActivePendingIntentsUseCase() } returns activePendingActionIdsFlow
 
         coEvery { agentOrchestrator.observeAndProcessMessages(any()) } returns Unit
@@ -107,6 +115,22 @@ class AgentDemoViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
     }
+
+    private fun createViewModel(): AgentDemoViewModel =
+        AgentDemoViewModel(
+            savedStateHandle,
+            getChatHistoryUseCase,
+            manageThreadsUseCase,
+            sendMessageUseCase,
+            agentOrchestrator,
+            settingsRepository,
+            observeActivePendingIntentsUseCase,
+            launchPendingIntentUseCase,
+            consumePendingIntentUseCase,
+            getInstalledAppsUseCase,
+            getAppFunctionsUseCase,
+            deviceCapabilityRepository,
+        )
 
     @Test
     fun `onEvent OnModelSelected updates thread model when thread exists`() =
@@ -123,20 +147,7 @@ class AgentDemoViewModelTest {
                 manageThreadsUseCase.updateThreadModel("thread-1", LlmModel.GEMINI_3_1_PRO_PREVIEW)
             } returns Unit
 
-            viewModel =
-                AgentDemoViewModel(
-                    savedStateHandle,
-                    getChatHistoryUseCase,
-                    manageThreadsUseCase,
-                    sendMessageUseCase,
-                    agentOrchestrator,
-                    settingsRepository,
-                    observeActivePendingIntentsUseCase,
-                    launchPendingIntentUseCase,
-                    consumePendingIntentUseCase,
-                    getInstalledAppsUseCase,
-                    getAppFunctionsUseCase,
-                )
+            viewModel = createViewModel()
 
             viewModel.onEvent(AgentUiEvent.OnModelSelected(LlmModel.GEMINI_3_1_PRO_PREVIEW))
 
@@ -151,20 +162,7 @@ class AgentDemoViewModelTest {
             threadsFlow.value = emptyList()
             coEvery { manageThreadsUseCase.createThread(LlmModel.DEFAULT) } returns "thread-new"
 
-            viewModel =
-                AgentDemoViewModel(
-                    savedStateHandle,
-                    getChatHistoryUseCase,
-                    manageThreadsUseCase,
-                    sendMessageUseCase,
-                    agentOrchestrator,
-                    settingsRepository,
-                    observeActivePendingIntentsUseCase,
-                    launchPendingIntentUseCase,
-                    consumePendingIntentUseCase,
-                    getInstalledAppsUseCase,
-                    getAppFunctionsUseCase,
-                )
+            viewModel = createViewModel()
 
             coVerify { manageThreadsUseCase.createThread(LlmModel.DEFAULT) }
         }
@@ -182,20 +180,7 @@ class AgentDemoViewModelTest {
             threadsFlow.value = listOf(existingThread)
             selectedProviderFlow.value = LlmProviderName.GEMINI
 
-            viewModel =
-                AgentDemoViewModel(
-                    savedStateHandle,
-                    getChatHistoryUseCase,
-                    manageThreadsUseCase,
-                    sendMessageUseCase,
-                    agentOrchestrator,
-                    settingsRepository,
-                    observeActivePendingIntentsUseCase,
-                    launchPendingIntentUseCase,
-                    consumePendingIntentUseCase,
-                    getInstalledAppsUseCase,
-                    getAppFunctionsUseCase,
-                )
+            viewModel = createViewModel()
 
             coVerify(exactly = 0) { manageThreadsUseCase.createThread(any()) }
             assertEquals(
@@ -217,20 +202,7 @@ class AgentDemoViewModelTest {
             threadsFlow.value = listOf(existingThread)
             selectedProviderFlow.value = LlmProviderName.GEMINI
 
-            viewModel =
-                AgentDemoViewModel(
-                    savedStateHandle,
-                    getChatHistoryUseCase,
-                    manageThreadsUseCase,
-                    sendMessageUseCase,
-                    agentOrchestrator,
-                    settingsRepository,
-                    observeActivePendingIntentsUseCase,
-                    launchPendingIntentUseCase,
-                    consumePendingIntentUseCase,
-                    getInstalledAppsUseCase,
-                    getAppFunctionsUseCase,
-                )
+            viewModel = createViewModel()
 
             coEvery { sendMessageUseCase(any(), any(), any(), any()) } returns Unit
 
@@ -259,20 +231,7 @@ class AgentDemoViewModelTest {
             threadsFlow.value = listOf(existingThread)
             selectedProviderFlow.value = LlmProviderName.GEMINI
 
-            viewModel =
-                AgentDemoViewModel(
-                    savedStateHandle,
-                    getChatHistoryUseCase,
-                    manageThreadsUseCase,
-                    sendMessageUseCase,
-                    agentOrchestrator,
-                    settingsRepository,
-                    observeActivePendingIntentsUseCase,
-                    launchPendingIntentUseCase,
-                    consumePendingIntentUseCase,
-                    getInstalledAppsUseCase,
-                    getAppFunctionsUseCase,
-                )
+            viewModel = createViewModel()
 
             val message =
                 MessageEntity(
@@ -308,21 +267,52 @@ class AgentDemoViewModelTest {
             threadsFlow.value = listOf(newThread, oldThread)
             selectedProviderFlow.value = LlmProviderName.GEMINI
 
-            viewModel =
-                AgentDemoViewModel(
-                    savedStateHandle,
-                    getChatHistoryUseCase,
-                    manageThreadsUseCase,
-                    sendMessageUseCase,
-                    agentOrchestrator,
-                    settingsRepository,
-                    observeActivePendingIntentsUseCase,
-                    launchPendingIntentUseCase,
-                    consumePendingIntentUseCase,
-                    getInstalledAppsUseCase,
-                    getAppFunctionsUseCase,
-                )
+            viewModel = createViewModel()
 
             assertEquals(newThread, (viewModel.uiState.value as AgentUiState.Loaded).currentThread)
+        }
+
+    @Test
+    fun `isGlassesConnected state updates when projected device connects`() =
+        runTest {
+            val existingThread =
+                ThreadEntity(
+                    "thread-1",
+                    System.currentTimeMillis(),
+                    LlmModel.GEMINI_3_1_PRO_PREVIEW,
+                    null,
+                )
+            threadsFlow.value = listOf(existingThread)
+            isGlassesConnectedFlow.value = true
+
+            viewModel = createViewModel()
+
+            assertTrue((viewModel.uiState.value as AgentUiState.Loaded).isGlassesConnected)
+        }
+
+    @Test
+    fun `launchAgentOnGlasses delegates to deviceCapabilityRepository with current threadId and targetPackageName`() =
+        runTest {
+            val existingThread =
+                ThreadEntity(
+                    "thread-1",
+                    System.currentTimeMillis(),
+                    LlmModel.GEMINI_3_1_PRO_PREVIEW,
+                    null,
+                )
+            threadsFlow.value = listOf(existingThread)
+            val mockContext = mockk<Context>(relaxed = true)
+
+            viewModel = createViewModel()
+            val launched = viewModel.launchAgentOnGlasses(mockContext, "com.example.chatapp")
+
+            assertTrue(launched)
+            verify {
+                deviceCapabilityRepository.launchGlassesAgent(
+                    activityContext = mockContext,
+                    threadId = "thread-1",
+                    targetPackageName = "com.example.chatapp",
+                )
+            }
         }
 }

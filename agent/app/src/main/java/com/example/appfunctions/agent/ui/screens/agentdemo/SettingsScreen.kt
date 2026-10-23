@@ -18,6 +18,8 @@ package com.example.appfunctions.agent.ui.screens.agentdemo
 import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -40,6 +42,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -48,6 +51,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -71,6 +75,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.appfunctions.agent.BuildConfig
 import com.example.appfunctions.agent.R
 import com.example.appfunctions.agent.data.ServiceTier
+import com.example.appfunctions.agent.domain.device.FormFactor
 import com.google.android.gms.oss.licenses.v2.OssLicensesMenuActivity
 import kotlin.OptIn
 
@@ -88,6 +93,8 @@ fun SettingsScreen(
             { context.startActivity(Intent(context, OssLicensesMenuActivity::class.java)) }
         }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val glassesConnectedOverride by viewModel.glassesConnectedOverride.collectAsStateWithLifecycle()
+    val formFactorOverride by viewModel.formFactorOverride.collectAsStateWithLifecycle()
 
     SettingsScreenContent(
         geminiApiKeyState = viewModel.geminiApiKeyState,
@@ -95,6 +102,10 @@ fun SettingsScreen(
         onServiceTierSelected = viewModel::setServiceTier,
         onOpenLicenses = onOpenLicensesClick,
         onNavigateToConnectedApps = onNavigateToConnectedApps,
+        isGlassesSimulated = glassesConnectedOverride == true,
+        selectedFormFactor = formFactorOverride,
+        onToggleGlassesSimulation = { enabled -> viewModel.setGlassesSimulation(enabled) },
+        onSelectFormFactor = { formFactor -> viewModel.setFormFactorOverride(formFactor) },
     )
 }
 
@@ -107,6 +118,10 @@ fun SettingsScreenContent(
     onServiceTierSelected: (ServiceTier) -> Unit,
     onOpenLicenses: () -> Unit,
     onNavigateToConnectedApps: () -> Unit,
+    isGlassesSimulated: Boolean = false,
+    selectedFormFactor: FormFactor? = null,
+    onToggleGlassesSimulation: (Boolean) -> Unit = {},
+    onSelectFormFactor: (FormFactor?) -> Unit = {},
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -225,6 +240,79 @@ fun SettingsScreenContent(
                 modifier =
                     Modifier.clickable(role = Role.Button) { onNavigateToConnectedApps() },
             )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    text = "XR Glasses & Form Factor Testing",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(vertical = 8.dp).semantics { heading() },
+                )
+            }
+
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = "Simulate XR Glasses Connection",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        text =
+                            "Enables the top-bar Glasses icon to test the Glimmer HUD on phones or emulators without physical glasses",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                leadingContent = {
+                    Icon(imageVector = SmartGlassesIcon, contentDescription = null)
+                },
+                trailingContent = {
+                    Switch(
+                        checked = isGlassesSimulated,
+                        onCheckedChange = onToggleGlassesSimulation,
+                    )
+                },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            )
+
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    text = "Target Form Factor",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+                val formFactorOptions: List<Pair<FormFactor?, String>> =
+                    listOf(
+                        null to "Auto",
+                        FormFactor.HANDSET to "Handset",
+                        FormFactor.TABLET to "Tablet",
+                        FormFactor.WEAR to "Wear OS",
+                        FormFactor.AUTOMOTIVE to "Android Auto",
+                        FormFactor.TV to "Android TV",
+                        FormFactor.XR_HEADSET to "XR Headset",
+                        FormFactor.XR_GLASSES_AUDIO to "XR Audio Glasses",
+                        FormFactor.XR_GLASSES_DISPLAY to "XR Display Glasses",
+                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    formFactorOptions.forEach { (factor, label) ->
+                        FilterChip(
+                            selected = selectedFormFactor == factor,
+                            onClick = { onSelectFormFactor(factor) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+            }
 
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 8.dp),

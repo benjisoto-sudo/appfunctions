@@ -2,7 +2,32 @@
 
 AppFunctions Testing Agent is a testing and debugging tool for Android AppFunctions.
 It allows developers to troubleshoot integration issues, manually invoke functions with
-deterministic input, and test functions using an LLM-based agent.
+deterministic input, and test functions using an LLM-based agent across text chat, real-time
+**Gemini Live (`BidiGenerateContent`)** voice/multimodal sessions, and **Android XR Smart Glasses**.
+
+## Multi-Modal & Multi-Form-Factor Architecture
+
+The Testing Agent is designed to work across Android form factors while keeping the vanilla text
+chat experience front and center on mobile:
+
+-   **Vanilla Text Chat (Default)**: Standard turn-based chat agent (`AgentDemoScreen`) that
+    discovers and invokes `@AppFunction` tools across connected apps (such as `ChatApp`).
+-   **Gemini Live on Mobile (`Live` Icon)**: Real-time bidirectional voice mode powered by the
+    Gemini Live WebSocket API (`models/gemini-3.1-flash-live-preview`). When glasses are
+    disconnected, users can tap the **Live** icon in the top bar of either `agent` or `ChatApp` to
+    invoke any discovered `@AppFunction` by voice with `<15ms` barge-in interruption and automatic
+    tool execution.
+-   **Android XR Audio & Display Glasses (`Glasses` Icon & Projected Activity)**:
+    -   Observes `ProjectedContext.isProjectedDeviceConnected` to enable the **Glasses** icon in the
+        top bar when Android XR glasses are connected (and disables it when glasses are off).
+    -   Provides `GlassesAgentActivity` (`android:requiredDisplayCategory="xr_projected"` and
+        `androidx.xr.projected.CATEGORY_PROJECTED`) built with **Jetpack Glimmer** (`GlimmerTheme`
+        on pure `#000000` additive waveguide background) and **Jetpack Projected** hardware routing
+        (`AudioRecord.Builder().setContext(projectedDeviceContext)` for temple microphones and
+        `CameraX` `640x480` snapshots for point-of-view visual context).
+-   **Holistic Form-Factor Support (`DeviceCapabilityRepository`)**: Adapts system instructions,
+    audio routing, and local hardware tools across `HANDSET`, `TABLET`, `WEAR`, `AUTOMOTIVE`, `TV`,
+    `XR_HEADSET`, `XR_GLASSES_AUDIO`, and `XR_GLASSES_DISPLAY`.
 
 ## Prerequisites
 

@@ -15,6 +15,7 @@
  */
 package com.example.appfunctions.agent.ui.screens.agentdemo
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -33,9 +34,12 @@ import com.example.appfunctions.agent.domain.appfunction.GetInstalledAppsUseCase
 import com.example.appfunctions.agent.domain.chat.GetChatHistoryUseCase
 import com.example.appfunctions.agent.domain.chat.ManageThreadsUseCase
 import com.example.appfunctions.agent.domain.chat.SendMessageUseCase
+import com.example.appfunctions.agent.domain.device.DeviceCapabilities
+import com.example.appfunctions.agent.domain.device.DeviceCapabilityRepository
 import com.example.appfunctions.agent.domain.pendingintent.ConsumePendingIntentUseCase
 import com.example.appfunctions.agent.domain.pendingintent.LaunchPendingIntentUseCase
 import com.example.appfunctions.agent.domain.pendingintent.ObserveActivePendingIntentsUseCase
+import com.example.appfunctions.agent.ui.glasses.GlassesAgentActivity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -64,11 +68,14 @@ class AgentDemoViewModel
         private val consumePendingIntentUseCase: ConsumePendingIntentUseCase,
         private val getInstalledAppsUseCase: GetInstalledAppsUseCase,
         private val getAppFunctionsUseCase: GetAppFunctionsUseCase,
+        private val deviceCapabilityRepository: DeviceCapabilityRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow<AgentUiState>(AgentUiState.Loading)
         val uiState: StateFlow<AgentUiState> = _uiState.asStateFlow()
 
         private val installedApps = MutableStateFlow<List<AppInfo>>(emptyList())
+        private val isGlassesConnected = MutableStateFlow(false)
+        private val deviceCapabilities = MutableStateFlow(DeviceCapabilities())
 
         private var observationJob: Job? = null
 
@@ -82,6 +89,18 @@ class AgentDemoViewModel
                             getInstalledAppsUseCase().filter { it.packageName in packagesWithTools }
                         }
                     installedApps.value = filteredApps
+                }
+            }
+
+            viewModelScope.launch {
+                deviceCapabilityRepository.isGlassesConnected.collect { connected ->
+                    isGlassesConnected.value = connected
+                }
+            }
+
+            viewModelScope.launch {
+                deviceCapabilityRepository.observeCapabilities().collect { capabilities ->
+                    deviceCapabilities.value = capabilities
                 }
             }
 
@@ -109,16 +128,29 @@ class AgentDemoViewModel
                     agentOrchestrator.status,
                     savedStateHandle.getStateFlow<String?>(MainActivity.ARG_THREAD_ID, null),
                     installedApps,
-                ) {
-                        threads,
-                        provider,
-                        status,
-                        targetThreadId,
-                        apps,
-                    ->
-                    ThreadConfig(threads, provider, status, targetThreadId, apps)
+                    settingsRepository.geminiApiKey,
+                    isGlassesConnected,
+                    deviceCapabilities,
+                ) { args ->
+                    @Suppress("UNCHECKED_CAST")
+                    ThreadConfig(
+                        threads = args[0] as List<ThreadEntity>,
+                        provider = args[1] as LlmProviderName,
+                        status = args[2] as AgentStatus,
+                        targetThreadId = args[3] as String?,
+                        installedApps = args[4] as List<AppInfo>,
+                        geminiApiKey = args[5] as String?,
+                        isGlassesConnected = args[6] as Boolean,
+                        deviceCapabilities = args[7] as DeviceCapabilities,
+                    )
                 }
-                    .collectLatest { (threads, provider, status, targetThreadId, apps) ->
+                    .collectLatest { config ->
+                        val threads = config.threads
+                        val status = config.status
+                        val targetThreadId = config.targetThreadId
+                        val apps = config.installedApps
+                        val apiKey = config.geminiApiKey
+
                         val currentThread =
                             threads.find { it.threadId == targetThreadId } ?: threads.firstOrNull()
 
@@ -140,6 +172,9 @@ class AgentDemoViewModel
                                     activePendingActionIds =
                                         currentLoadedState?.activePendingActionIds ?: emptySet(),
                                     installedApps = apps,
+                                    geminiApiKey = apiKey,
+                                    isGlassesConnected = config.isGlassesConnected,
+                                    deviceCapabilities = config.deviceCapabilities,
                                 )
 
                             // Start observing messages for the current thread if not already doing so
@@ -207,7 +242,28 @@ class AgentDemoViewModel
                         launchPendingIntentUseCase(pendingIntent)
                     }
                 }
+                is AgentUiEvent.OnLaunchOnGlasses -> {
+                    // Handled with Context via launchAgentOnGlasses(context, event.targetPackageName)
+                }
             }
+        }
+
+        /**
+         * Projects [GlassesAgentActivity] onto the connected Android XR glasses display via [DeviceCapabilityRepository].
+         */
+        fun launchAgentOnGlasses(
+            context: Context,
+            targetPackageName: String? = null,
+        ): Boolean {
+            return runCatching {
+                val threadId = (_uiState.value as? AgentUiState.Loaded)?.currentThread?.threadId
+                deviceCapabilityRepository.launchGlassesAgent(
+                    activityContext = context,
+                    threadId = threadId,
+                    targetPackageName = targetPackageName,
+                )
+                true
+            }.getOrDefault(false)
         }
 
         private suspend fun createAndSelectThread(llmModel: LlmModel) {
@@ -222,4 +278,7 @@ private data class ThreadConfig(
     val status: AgentStatus,
     val targetThreadId: String?,
     val installedApps: List<AppInfo>,
+    val geminiApiKey: String?,
+    val isGlassesConnected: Boolean,
+    val deviceCapabilities: DeviceCapabilities,
 )

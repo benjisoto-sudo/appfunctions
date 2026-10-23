@@ -140,6 +140,7 @@ fun ChatScreen(
                         }
                     },
                     actions = {
+                        AgentLiveActions()
                         IconButton(onClick = onCallClick) {
                             Icon(
                                 imageVector = Icons.Default.Call,

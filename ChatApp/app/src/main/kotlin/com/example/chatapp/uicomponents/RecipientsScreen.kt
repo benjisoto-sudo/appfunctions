@@ -74,6 +74,7 @@ fun RecipientsScreen(
             TopAppBar(
                 title = { Text("Chats") },
                 actions = {
+                    AgentLiveActions()
                     IconButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = Icons.Default.Settings,

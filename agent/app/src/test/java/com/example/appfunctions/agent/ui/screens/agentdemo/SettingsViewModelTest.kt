@@ -18,8 +18,14 @@ package com.example.appfunctions.agent.ui.screens.agentdemo
 import androidx.compose.runtime.snapshots.Snapshot
 import com.example.appfunctions.agent.data.LlmProviderName
 import com.example.appfunctions.agent.data.ServiceTier
+import com.example.appfunctions.agent.domain.device.DeviceCapabilityRepository
+import com.example.appfunctions.agent.domain.device.FormFactor
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -39,13 +45,17 @@ import org.robolectric.RobolectricTestRunner
 class SettingsViewModelTest {
     private lateinit var viewModel: SettingsViewModel
     private lateinit var fakeRepository: FakeSettingsRepository
+    private lateinit var deviceCapabilityRepository: DeviceCapabilityRepository
     private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
         fakeRepository = FakeSettingsRepository()
-        viewModel = SettingsViewModel(fakeRepository)
+        deviceCapabilityRepository = mockk(relaxed = true)
+        every { deviceCapabilityRepository.glassesConnectedOverride } returns MutableStateFlow(null)
+        every { deviceCapabilityRepository.formFactorOverride } returns MutableStateFlow(null)
+        viewModel = SettingsViewModel(fakeRepository, deviceCapabilityRepository)
     }
 
     @After
@@ -60,7 +70,7 @@ class SettingsViewModelTest {
             fakeRepository.setSelectedProvider(LlmProviderName.GEMINI)
 
             // Recreate ViewModel to trigger init load
-            viewModel = SettingsViewModel(fakeRepository)
+            viewModel = SettingsViewModel(fakeRepository, deviceCapabilityRepository)
 
             val job = backgroundScope.launch { viewModel.uiState.collect {} }
             testScheduler.advanceUntilIdle()
@@ -122,4 +132,22 @@ class SettingsViewModelTest {
 
             job.cancel()
         }
+
+    @Test
+    fun setGlassesSimulation_updatesDeviceCapabilityRepository() {
+        viewModel.setGlassesSimulation(true)
+        verify { deviceCapabilityRepository.setGlassesConnectedOverride(true) }
+
+        viewModel.setGlassesSimulation(false)
+        verify { deviceCapabilityRepository.setGlassesConnectedOverride(null) }
+    }
+
+    @Test
+    fun setFormFactorOverride_updatesDeviceCapabilityRepository() {
+        viewModel.setFormFactorOverride(FormFactor.XR_GLASSES_DISPLAY)
+        verify { deviceCapabilityRepository.setFormFactorOverride(FormFactor.XR_GLASSES_DISPLAY) }
+
+        viewModel.setFormFactorOverride(null)
+        verify { deviceCapabilityRepository.setFormFactorOverride(null) }
+    }
 }

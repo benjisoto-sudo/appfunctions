@@ -20,6 +20,7 @@ import com.example.appfunctions.agent.data.db.entities.MessageEntity
 import com.example.appfunctions.agent.data.db.entities.ThreadEntity
 import com.example.appfunctions.agent.domain.AgentStatus
 import com.example.appfunctions.agent.domain.appfunction.AppInfo
+import com.example.appfunctions.agent.domain.device.DeviceCapabilities
 
 /** Represents the UI state for the Agent Demo screen. */
 sealed class AgentUiState {
@@ -32,6 +33,9 @@ sealed class AgentUiState {
         val threads: List<ThreadEntity> = emptyList(),
         val activePendingActionIds: Set<String> = emptySet(),
         val installedApps: List<AppInfo> = emptyList(),
+        val geminiApiKey: String? = null,
+        val isGlassesConnected: Boolean = false,
+        val deviceCapabilities: DeviceCapabilities = DeviceCapabilities(),
     ) : AgentUiState()
 }
 
@@ -49,4 +53,6 @@ sealed class AgentUiEvent {
     data class OnThreadSelected(val threadId: String) : AgentUiEvent()
 
     data class OnConfirmAction(val pendingIntentId: String) : AgentUiEvent()
+
+    data class OnLaunchOnGlasses(val targetPackageName: String? = null) : AgentUiEvent()
 }

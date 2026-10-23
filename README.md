@@ -9,22 +9,22 @@ This repository contains two primary projects. An API sample and a testing agent
 ### 1. ChatApp sample
 
 The **ChatApp** sample showcases how a communication app can provide its core features to the Android intelligence system. It serves as an educational reference for implementing AppFunctions.
-It is a functional chat application built with [Jetpack Compose](https://developer.android.com/jetpack/compose) and [Hilt](https://developer.android.com/training/dependency-injection/hilt-android), demonstrating AppFunctions usage across both mobile and Wear OS form factors.
+It is a functional chat application built with [Jetpack Compose](https://developer.android.com/jetpack/compose) and [Hilt](https://developer.android.com/training/dependency-injection/hilt-android), demonstrating AppFunctions usage across mobile, Wear OS, and Android XR Smart Glasses form factors.
 
 - **Location**: [ChatApp](ChatApp/)
 - **Structure**:
-    - `app`: Main mobile chat application.
+    - `app`: Main mobile chat application (with top-bar actions to launch **Gemini Live** on mobile or project the agent onto connected **Android XR Glasses**).
     - `wear`: Wear OS companion chat application.
     - `shared`: Common data repositories, ViewModels, and AppFunction service definitions.
-- **Features**: Sending messages, searching contacts, and initiating calls via AppFunctions.
+- **Features**: Sending messages (`send`), searching contacts (`searchContacts`), and initiating calls (`makeCall`) via AppFunctions across text chat, mobile Gemini Live voice, and Android XR Glasses.
 
 ### 2. AppFunctions Testing Agent
 
-The **AppFunctions Testing Agent** is a testing and debugging tool for Android AppFunctions. It is designed to help developers verify their integrations, troubleshoot execution issues, and evaluate AppFunctions using both manual deterministic inputs and an LLM-based agent.
+The **AppFunctions Testing Agent** is a testing and debugging tool for Android AppFunctions. It is designed to help developers verify their integrations, troubleshoot execution issues, and evaluate AppFunctions using manual deterministic inputs, an LLM text chat agent, real-time **Gemini Live (`BidiGenerateContent`)** voice/multimodal sessions, and **Android XR Smart Glasses** (via Jetpack Glimmer and Jetpack Projected).
 
 - **Location**: [agent](agent/)
 - **Documentation**: See the [Agent README](agent/README.md) for full building, running, and testing instructions.
-- **Features**: Privileged AppFunction execution, manual debugging, test automation, and LLM agent evaluations.
+- **Features**: Privileged AppFunction execution, manual debugging, test automation, LLM chat agent evaluations, Gemini Live bidirectional voice & vision tool calling, and multi-form-factor adaptation (`HANDSET`, `TABLET`, `WEAR`, `AUTOMOTIVE`, `TV`, `XR_HEADSET`, `XR_GLASSES_AUDIO`, `XR_GLASSES_DISPLAY`).
 
 ## Setup Guide
 
